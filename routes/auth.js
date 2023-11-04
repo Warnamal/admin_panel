@@ -1,31 +1,34 @@
 const router = require("express").Router();
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
-
+const jwt = require("jsonwebtoken");
 // REGISTER
 router.post("/register", async (req, res) => {
-console.log("---------------------");
-  
+  console.log("---------------------");
+
   const { username, email, password } = req.body;
-console.log(username);
-console.log(email);
-console.log(password);
+  console.log(username);
+  console.log(email);
+  console.log(password);
+
   try {
     // Check if the username already exists
-    const existingUser = await User.findOne({ username });
+    const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       // Username is already taken, return an error
       return res.status(400).json({ error: "Username is already taken" });
     }
 
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create a new user with the hashed password
-    const newUser = new User({ username, email, password: hashedPassword });
-    const user = await newUser.save();
+    const newUser = new User({
+      username: username,
+      email: email,
+      password: hashedPassword,
+    });
+    const user = await newUser.save(); 
 
     // Send a success response with the user data
     res.status(200).json(user);
@@ -35,7 +38,6 @@ console.log(password);
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
 
 // LOGIN
 router.post("/login", async (req, res) => {
@@ -57,13 +59,28 @@ router.post("/login", async (req, res) => {
       // Password does not match
       return res.status(401).json({ error: "Incorrect password" });
     }
-
+    const accessToken = jwt.sign(
+      {
+        user: {
+          username: user.username,
+          email: user.email,
+        },
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
     // If the email and password match, you can consider the user logged in
-    res.status(200).json({ message: "Login successful" });
+    res.status(200).json({ accessToken, user  });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+
+router.get("/current", async (req, res) => {
+  res.json(req.user);
+});
+
 
 module.exports = router;
